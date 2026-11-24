@@ -269,6 +269,7 @@ fun ProfileScreen(
     onOpenTaper: () -> Unit = {},
     onOpenWatches: () -> Unit = {},
     onOpenBackup: () -> Unit = {},
+    onOpenMail: () -> Unit = {},
 ) {
     val profile = vm.profile
     if (profile == null) {
@@ -308,6 +309,7 @@ fun ProfileScreen(
                 GhostButton("Тейпер", onClick = onOpenTaper)
                 GhostButton("Часы", onClick = onOpenWatches)
                 GhostButton("Резервная копия настроек", onClick = onOpenBackup)
+                GhostButton("Почта (SMTP)", onClick = onOpenMail)
                 GhostButton("О программе", onClick = onOpenAbout)
             }
         }

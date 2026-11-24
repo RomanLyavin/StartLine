@@ -2,7 +2,7 @@
 
 План тренировок (бег и вело) с ИИ, подводкой к нужным соревнованиям и моделью athlete.
 
-Версия 1.0.4 (versionCode 104).
+Версия 1.0.5 (versionCode 105).
 
 ## Возможности
 
@@ -20,6 +20,14 @@
 - Календарь стартов и генерация плана на 4 недели
 - Экран «О программе»: разработчик, поддержка проекта, проверка обновлений на GitHub
 - Резервная копия настроек (JSON, экспорт/импорт)
+
+## Изменения 1.0.5
+
+- Экран «Почта (SMTP)» в настройках: сервер, порт, логин, пароль, отправитель,
+  STARTTLS — можно ввести прямо на телефоне, пароль хранится шифрованным через
+  Android Keystore (`data/MailSettingsStore.kt`, `ui/settings/MailSettingsScreen.kt`)
+- Кнопка «Отправить тестовое письмо» для проверки настроек
+- Настройки из приложения имеют приоритет над `mail.properties` (BuildConfig)
 
 ## Изменения 1.0.4
 
@@ -47,7 +55,8 @@ from=bot@example.com
 starttls=true
 ```
 
-Если файл пустой, регистрация работает, но письмо не отправляется.
+Если файл пустой, регистрация работает, но письмо не отправляется. Значения из
+экрана «Почта (SMTP)» в настройках приложения имеют приоритет над этим файлом.
 
 ## Сборка
 
@@ -61,25 +70,25 @@ $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 ```
 
 Готовый APK: `app/build/outputs/apk/release/app-release.apk`, копируется в
-`StartLine-1.0.4.apk`. Для подписи используется `startline-release.jks` и
+`StartLine-1.0.5.apk`. Для подписи используется `startline-release.jks` и
 `keystore.properties` (не попадает в git).
 
-## Проверка APK 1.0.4
+## Проверка APK 1.0.5
 
-- Файл: `StartLine-1.0.4.apk` (10 625 261 байт)
-- SHA-256: `CFD39536AB127C51138BEE9663FDC27769B620FE36BE61ABFA0865BDD470E8C6`
-- `aapt2 dump badging`: package `com.startline.app`, versionCode 104, versionName 1.0.4, targetSdk 34
+- Файл: `StartLine-1.0.5.apk` (10 625 257 байт)
+- SHA-256: `5B38EF2EF384A5D723F4F1C98A16625582CE16276B080F71A34D3F74EFFD04EB`
+- `aapt2 dump badging`: package `com.startline.app`, versionCode 105, versionName 1.0.5, targetSdk 34
 - `zipalign -c -v 4`: Verification successful
 - Подпись: v2-схема, сертификат SHA-256 `dc511246a66e424fd47ae2a0e3a723a32f1bd3a7c5cf8eacd86bb1aff953960e`
-  (тот же, что у 1.0.0–1.0.3 — обновление установится поверх установленной версии)
+  (тот же, что у 1.0.0–1.0.4 — обновление установится поверх установленной версии)
 - Тесты: 38 unit-тестов, все пройдены (`app/src/test/java/...`)
-- Отправка письма проверена на эмуляторе: приложение подключилось к SMTP-серверу,
+- Отправка проверена на эмуляторе: приложение подключилось к SMTP-серверу,
   выполнило EHLO, AUTH LOGIN, MAIL FROM, RCPT TO, DATA и передало тело письма
   с паролем (лог сервера: `emulator-check/smtp-server.log`)
 
 ## GitHub
 
-Релиз с APK: https://github.com/RomanLyavin/StartLine/releases/tag/v1.0.4
+Релиз с APK: https://github.com/RomanLyavin/StartLine/releases/tag/v1.0.5
 
 ## Важно про OAuth
 

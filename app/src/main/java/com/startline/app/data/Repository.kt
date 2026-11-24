@@ -34,16 +34,9 @@ class Repository(context: Context) {
     private val prefs = appContext.getSharedPreferences("startline", Context.MODE_PRIVATE)
     private val watchOAuth = WatchOAuthManager(appContext)
     private val watchSync = WatchSync(watchOAuth)
-    private val mailConfig = MailConfig(
-        host = BuildConfig.MAIL_HOST,
-        port = BuildConfig.MAIL_PORT,
-        user = BuildConfig.MAIL_USER,
-        password = BuildConfig.MAIL_PASSWORD,
-        from = BuildConfig.MAIL_FROM,
-        useStartTls = BuildConfig.MAIL_STARTTLS,
-    )
+    private val mailStore = MailSettingsStore(appContext)
 
-    fun mailConfig(): MailConfig = mailConfig
+    fun mailConfig(): MailConfig = mailStore.load()
 
     // ---------- session ----------
 
@@ -67,9 +60,23 @@ class Repository(context: Context) {
         // Письмо с паролем. Регистрация не отменяется, если SMTP недоступен:
         // аккаунт уже создан, и пользователь узнаёт об этом отдельным сообщением.
         val send = runCatching {
-            MailSender(mailConfig).send(normalized, WelcomeMail.SUBJECT, WelcomeMail.body(normalized, password))
+            MailSender(mailConfig()).send(normalized, WelcomeMail.SUBJECT, WelcomeMail.body(normalized, password))
         }
         return RegistrationResult(user, send.isSuccess, send.exceptionOrNull()?.message)
+    }
+
+    fun saveMailSettings(config: MailConfig) {
+        mailStore.save(config)
+    }
+
+    /** Проверка настроек: письмо уходит на адрес отправителя. */
+    fun sendTestMail(): Result<Unit> = runCatching {
+        val config = mailConfig()
+        MailSender(config).send(
+            config.from,
+            WelcomeMail.SUBJECT,
+            "Проверка настроек SMTP. Если вы видите это письмо, сервер работает.",
+        )
     }
 
     fun login(email: String, password: String): User {

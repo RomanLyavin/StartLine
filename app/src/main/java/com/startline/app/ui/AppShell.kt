@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.startline.app.AppViewModel
 import com.startline.app.ui.settings.AboutScreen
+import com.startline.app.ui.settings.MailSettingsScreen
 import com.startline.app.ui.settings.SettingsBackupScreen
 import com.startline.app.ui.settings.TrainingScheduleScreen
 
@@ -61,6 +62,7 @@ private fun MainShell(vm: AppViewModel) {
     var showTaper by rememberSaveable { mutableStateOf(false) }
     var showWatches by rememberSaveable { mutableStateOf(false) }
     var showBackup by rememberSaveable { mutableStateOf(false) }
+    var showMail by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -94,7 +96,7 @@ private fun MainShell(vm: AppViewModel) {
             }
         },
         bottomBar = {
-            if (detailId == null && !showAi && !showSchedule && !showAbout && !showTaper && !showWatches && !showBackup) {
+            if (detailId == null && !showAi && !showSchedule && !showAbout && !showTaper && !showWatches && !showBackup && !showMail) {
                 NavigationBar(containerColor = SurfaceDark, tonalElevation = 0.dp) {
                     tabs.forEachIndexed { index, item ->
                         NavigationBarItem(
@@ -161,6 +163,7 @@ private fun MainShell(vm: AppViewModel) {
                 )
                 showWatches -> WatchConnectionsScreen(vm = vm, onBack = { showWatches = false })
                 showBackup -> SettingsBackupScreen(vm = vm, onBack = { showBackup = false })
+                showMail -> MailSettingsScreen(vm = vm, onBack = { showMail = false })
                 tab == 0 -> DashboardScreen(
                     vm = vm,
                     onOpenCalendar = { tab = 2 },
@@ -183,6 +186,7 @@ private fun MainShell(vm: AppViewModel) {
                     onOpenTaper = { showTaper = true },
                     onOpenWatches = { showWatches = true },
                     onOpenBackup = { showBackup = true },
+                    onOpenMail = { showMail = true },
                 )
             }
         }

@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.startline.app.data.Activity
 import com.startline.app.data.ActivityStreams
 import com.startline.app.data.IntervalsClient
+import com.startline.app.data.MailConfig
 import com.startline.app.data.Profile
 import com.startline.app.data.Race
 import com.startline.app.data.Repository
@@ -91,6 +92,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var watchSyncBusy by mutableStateOf(false)
         private set
+    var mailSettings by mutableStateOf(MailConfig("", 587, "", "", ""))
+        private set
 
     private var updateBusy = false
     private val appVersion: String by lazy {
@@ -105,6 +108,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var autoSyncAttempted = false
 
     init {
+        mailSettings = repo.mailConfig()
         user = repo.currentUser()
         if (user != null) {
             loading = true
@@ -121,6 +125,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAuthError() {
         authError = null
+    }
+
+    // ---------- почта (SMTP) ----------
+
+    fun saveMailSettings(config: MailConfig) {
+        repo.saveMailSettings(config)
+        mailSettings = config
+        message = "Настройки почты сохранены"
+    }
+
+    fun sendTestMail() {
+        if (!mailSettings.isConfigured) {
+            message = "Заполните настройки почты"
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = repo.sendTestMail()
+            message = if (result.isSuccess) {
+                "Тестовое письмо отправлено на ${mailSettings.from}"
+            } else {
+                "Письмо не отправлено: ${result.exceptionOrNull()?.message}"
+            }
+        }
     }
 
     fun login(email: String, password: String) {
