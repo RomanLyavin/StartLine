@@ -144,9 +144,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         authError = null
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val u = repo.register(email, password)
-                user = u
-                loadAllInternal(u)
+                val result = repo.register(email, password)
+                user = result.user
+                loadAllInternal(result.user)
+                message = if (result.mailSent) {
+                    "Пароль отправлен на ${result.user.email}"
+                } else {
+                    "Аккаунт создан, но письмо не отправлено: ${result.mailError}"
+                }
             } catch (e: Exception) {
                 authError = e.message ?: "Не удалось зарегистрироваться"
             } finally {

@@ -9,6 +9,7 @@
 .cxx
 local.properties
 keystore.properties
+mail.properties
 *.jks
 app/build/
 app/src/main/java/com/startline/app/BuildConfig.java

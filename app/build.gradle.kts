@@ -12,6 +12,16 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
+// Реквизиты SMTP читаются из mail.properties (не коммитится), чтобы пароль
+// почтового ящика не попадал в репозиторий и в APK.
+val mailProperties = Properties()
+val mailPropertiesFile = rootProject.file("mail.properties")
+if (mailPropertiesFile.exists()) {
+    mailPropertiesFile.inputStream().use { mailProperties.load(it) }
+}
+
+fun quoted(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
     namespace = "com.startline.app"
     compileSdk = 35
@@ -20,9 +30,16 @@ android {
         applicationId = "com.startline.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 101
-        versionName = "1.0.1"
+        versionCode = 104
+        versionName = "1.0.4"
         resourceConfigurations += listOf("ru")
+
+        buildConfigField("String", "MAIL_HOST", quoted(mailProperties.getProperty("host", "")))
+        buildConfigField("int", "MAIL_PORT", (mailProperties.getProperty("port", "587").toIntOrNull() ?: 587).toString())
+        buildConfigField("String", "MAIL_USER", quoted(mailProperties.getProperty("user", "")))
+        buildConfigField("String", "MAIL_PASSWORD", quoted(mailProperties.getProperty("password", "")))
+        buildConfigField("String", "MAIL_FROM", quoted(mailProperties.getProperty("from", "")))
+        buildConfigField("boolean", "MAIL_STARTTLS", (mailProperties.getProperty("starttls", "true").toBoolean()).toString())
     }
 
     signingConfigs {
@@ -62,6 +79,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

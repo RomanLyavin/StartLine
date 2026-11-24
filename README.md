@@ -2,7 +2,7 @@
 
 План тренировок (бег и вело) с ИИ, подводкой к нужным соревнованиям и моделью athlete.
 
-Версия 1.0.3 (versionCode 103).
+Версия 1.0.4 (versionCode 104).
 
 ## Возможности
 
@@ -13,18 +13,41 @@
 - **Тейпер**: план подводки к ближайшему старту — 6 ступеней с рекомендациями по объёму и интенсивности
 - **Расписание тренировок**: дней в неделю, дни для длительной, интервальной и силовой,
   частота силовых (каждую неделю, раз в 2 недели и т. д.)
+- **Письмо с паролем при регистрации** — реальная отправка по SMTP (EHLO, STARTTLS,
+  AUTH LOGIN) без сторонних библиотек
 - Расчёт ctl/atl, готовности, пульсовых зон и нагрузки
 - ИИ-тренер (OpenRouter / DeepSeek) с встроенным резервным анализом
 - Календарь стартов и генерация плана на 4 недели
 - Экран «О программе»: разработчик, поддержка проекта, проверка обновлений на GitHub
 - Резервная копия настроек (JSON, экспорт/импорт)
 
-## Изменения 1.0.3
+## Изменения 1.0.4
 
-- Настройка частоты силовых тренировок (пункт 1.3 плана доработок)
-- Частота силовых попадает в резервную копию настроек
-- `themes.xml`: `android:windowLightNavigationBar` вынесен в `values-v27` (lint `NewApi` при minSdk 26)
-- Миграция базы данных до версии 4 (`profiles.strength_every_weeks`)
+- Отправка письма с данными для входа при регистрации (`data/Mailer.kt`,
+  `data/WelcomeMail.kt`), тесты `MailerTest` и `MailSenderTest`
+- Настройки SMTP читаются из `mail.properties` (файл не коммитится) и попадают
+  в `BuildConfig`: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD`,
+  `MAIL_FROM`, `MAIL_STARTTLS`
+- Регистрация не отменяется, если SMTP недоступен: аккаунт создаётся, а
+  приложение сообщает, что письмо не отправлено
+- Кнопки «О программе» и «Поддержать» на главном экране
+- Загрузка данных при старте перенесена с главного потока — из-за неё экран
+  зависал на телефоне с уже созданным аккаунтом
+
+## Настройка почты
+
+`mail.properties` в корне проекта (не попадает в git):
+
+```properties
+host=smtp.example.com
+port=587
+user=bot@example.com
+password=<пароль приложения>
+from=bot@example.com
+starttls=true
+```
+
+Если файл пустой, регистрация работает, но письмо не отправляется.
 
 ## Сборка
 
@@ -38,24 +61,25 @@ $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 ```
 
 Готовый APK: `app/build/outputs/apk/release/app-release.apk`, копируется в
-`StartLine-1.0.3.apk`. Для подписи используется `startline-release.jks` и
+`StartLine-1.0.4.apk`. Для подписи используется `startline-release.jks` и
 `keystore.properties` (не попадает в git).
 
-## Проверка APK 1.0.3
+## Проверка APK 1.0.4
 
-- Файл: `StartLine-1.0.3.apk` (10 625 255 байт)
-- SHA-256: `217AD2621FE4EA3F91C3AE981E6BD6AF3D7D1CD9705BCE4C914500CC992D8B07`
-- `aapt2 dump badging`: package `com.startline.app`, versionCode 103, versionName 1.0.3, targetSdk 34
+- Файл: `StartLine-1.0.4.apk` (10 625 261 байт)
+- SHA-256: `CFD39536AB127C51138BEE9663FDC27769B620FE36BE61ABFA0865BDD470E8C6`
+- `aapt2 dump badging`: package `com.startline.app`, versionCode 104, versionName 1.0.4, targetSdk 34
 - `zipalign -c -v 4`: Verification successful
 - Подпись: v2-схема, сертификат SHA-256 `dc511246a66e424fd47ae2a0e3a723a32f1bd3a7c5cf8eacd86bb1aff953960e`
-  (тот же, что у 1.0.0, 1.0.1, 1.0.2 — обновление установится поверх установленной версии)
-- Тесты: 30 unit-тестов, все пройдены (`app/src/test/java/...`)
+  (тот же, что у 1.0.0–1.0.3 — обновление установится поверх установленной версии)
+- Тесты: 38 unit-тестов, все пройдены (`app/src/test/java/...`)
+- Отправка письма проверена на эмуляторе: приложение подключилось к SMTP-серверу,
+  выполнило EHLO, AUTH LOGIN, MAIL FROM, RCPT TO, DATA и передало тело письма
+  с паролем (лог сервера: `emulator-check/smtp-server.log`)
 
 ## GitHub
 
-Релизы: https://github.com/RomanLyavin/StartLine/releases
-Релиз `v1.0.3` с APK `StartLine-1.0.3.apk` публикуется вручную (в этой папке нет
-локального git-репозитория).
+Релиз с APK: https://github.com/RomanLyavin/StartLine/releases/tag/v1.0.4
 
 ## Важно про OAuth
 

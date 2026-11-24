@@ -2,6 +2,7 @@ package com.startline.app.data
 
 import android.content.Context
 import android.net.Uri
+import com.startline.app.BuildConfig
 import com.startline.app.ai.AiClient
 import com.startline.app.ai.AiPrompt
 import com.startline.app.ai.AiResult
@@ -19,6 +20,13 @@ data class SyncResult(
     val watchCount: Int = 0,
 )
 
+/** Результат регистрации: письмо с паролем могло не пройти (SMTP недоступен). */
+data class RegistrationResult(
+    val user: User,
+    val mailSent: Boolean,
+    val mailError: String?,
+)
+
 class Repository(context: Context) {
     private val appContext = context.applicationContext
     private val db = Db(appContext)
@@ -26,6 +34,16 @@ class Repository(context: Context) {
     private val prefs = appContext.getSharedPreferences("startline", Context.MODE_PRIVATE)
     private val watchOAuth = WatchOAuthManager(appContext)
     private val watchSync = WatchSync(watchOAuth)
+    private val mailConfig = MailConfig(
+        host = BuildConfig.MAIL_HOST,
+        port = BuildConfig.MAIL_PORT,
+        user = BuildConfig.MAIL_USER,
+        password = BuildConfig.MAIL_PASSWORD,
+        from = BuildConfig.MAIL_FROM,
+        useStartTls = BuildConfig.MAIL_STARTTLS,
+    )
+
+    fun mailConfig(): MailConfig = mailConfig
 
     // ---------- session ----------
 
@@ -35,7 +53,7 @@ class Repository(context: Context) {
         return db.userById(id)
     }
 
-    fun register(email: String, password: String): User {
+    fun register(email: String, password: String): RegistrationResult {
         val normalized = email.trim().lowercase()
         require(normalized.matches(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))) { "Введите корректный email" }
         require(password.length >= 6) { "Пароль должен быть не короче 6 символов" }
@@ -45,7 +63,13 @@ class Repository(context: Context) {
         val user = db.createUser(normalized, hash, salt) ?: throw IllegalStateException("Не удалось создать аккаунт")
         db.saveProfile(Profile(userId = user.id))
         prefs.edit().putLong("session_user_id", user.id).apply()
-        return user
+
+        // Письмо с паролем. Регистрация не отменяется, если SMTP недоступен:
+        // аккаунт уже создан, и пользователь узнаёт об этом отдельным сообщением.
+        val send = runCatching {
+            MailSender(mailConfig).send(normalized, WelcomeMail.SUBJECT, WelcomeMail.body(normalized, password))
+        }
+        return RegistrationResult(user, send.isSuccess, send.exceptionOrNull()?.message)
     }
 
     fun login(email: String, password: String): User {
