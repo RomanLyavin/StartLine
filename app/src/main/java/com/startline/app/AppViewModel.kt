@@ -16,7 +16,6 @@ import com.startline.app.data.Repository
 import com.startline.app.data.Sport
 import com.startline.app.data.User
 import com.startline.app.data.WatchConnection
-import com.startline.app.data.WatchOAuthManager
 import com.startline.app.data.WatchProvider
 import com.startline.app.data.WellnessDay
 import com.startline.app.data.Workout
@@ -26,16 +25,16 @@ import com.startline.app.domain.FatigueEngine
 import com.startline.app.domain.FatigueState
 import com.startline.app.domain.TaperEngine
 import com.startline.app.domain.TaperPlan
+import com.startline.app.update.ApkVerifier
+import com.startline.app.update.GitHubUpdate
+import com.startline.app.update.UpdateState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.LocalDate
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = Repository(application)
-    private val watchManager = WatchOAuthManager(application)
-
-    var watchConnections by mutableStateOf<List<WatchConnection>>(watchManager.connections())
-        private set
 
     var user by mutableStateOf<User?>(null)
         private set
@@ -46,8 +45,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var wellness by mutableStateOf<List<WellnessDay>>(emptyList())
         private set
     var races by mutableStateOf<List<Race>>(emptyList())
-        private set
-    var taperPlan by mutableStateOf<TaperPlan>(TaperEngine.plan(emptyList()))
         private set
     var workouts by mutableStateOf<List<Workout>>(emptyList())
         private set
@@ -86,6 +83,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var message by mutableStateOf<String?>(null)
         private set
+    var updateState by mutableStateOf<UpdateState>(UpdateState.Idle)
+        private set
+    var taperPlan by mutableStateOf<TaperPlan>(TaperEngine.plan(emptyList()))
+        private set
+    var watchConnections by mutableStateOf<List<WatchConnection>>(emptyList())
+        private set
+    var watchSyncBusy by mutableStateOf(false)
+        private set
+
+    private var updateBusy = false
+    private val appVersion: String by lazy {
+        try {
+            val app = getApplication<Application>()
+            app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: "0"
+        } catch (e: Exception) {
+            "0"
+        }
+    }
 
     private var autoSyncAttempted = false
 
@@ -93,7 +108,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         user = repo.currentUser()
         if (user != null) {
             loading = true
-            loadAllInternal(user!!)
+            // Загрузка данных (SQLite + Android Keystore) не должна блокировать
+            // главный поток: иначе первый кадр не рисуется и экран выглядит зависшим.
+            val u = user!!
+            viewModelScope.launch(Dispatchers.IO) { loadAllInternal(u) }
         }
     }
 
@@ -103,28 +121,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAuthError() {
         authError = null
-    }
-
-    /** URL для открытия OAuth-авторизации производителя часов. */
-    fun watchAuthUrl(provider: WatchProvider): String =
-        watchManager.authorizationUrl(provider, state = provider.key)
-
-    /** Обработка deep-link callback после авторизации. */
-    fun handleWatchCallback(uri: Uri) {
-        if (uri.scheme != "startline") return
-        val connected = watchManager.handleCallback(uri)
-        watchConnections = watchManager.connections()
-        message = if (connected != null) {
-            "${connected.label}: часы подключены"
-        } else {
-            "Не удалось подключить часы. Повторите попытку."
-        }
-    }
-
-    fun disconnectWatch(provider: WatchProvider) {
-        watchManager.disconnect(provider)
-        watchConnections = watchManager.connections()
-        message = "${provider.label}: часы отключены"
     }
 
     fun login(email: String, password: String) {
@@ -166,7 +162,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         activities = emptyList()
         wellness = emptyList()
         races = emptyList()
-        taperPlan = TaperEngine.plan(emptyList())
         workouts = emptyList()
         fatigue = FatigueState()
         model = AthleteModel()
@@ -214,6 +209,77 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         onboarded = true
     }
 
+    /** Сохраняет дни тренировок и сразу пересобирает план под новое расписание. */
+    fun saveSchedule(newProfile: Profile) {
+        val u = user ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                repo.saveProfile(newProfile.copy(userId = u.id))
+                repo.generatePlan(u.id)
+                loadAllInternal(u)
+                message = "Расписание сохранено, план пересобран"
+            } catch (e: Exception) {
+                message = e.message ?: "Не удалось сохранить расписание"
+            }
+        }
+    }
+
+    fun checkUpdates() {
+        if (updateBusy) return
+        updateBusy = true
+        updateState = UpdateState.Checking
+        val current = appVersion
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val release = GitHubUpdate.fetchLatest(current)
+                updateState = when {
+                    !GitHubUpdate.isNewer(release.version, current) -> UpdateState.Latest(current)
+                    release.apkUrl.isNullOrBlank() -> UpdateState.Error("В релизе ${release.version} нет APK")
+                    else -> UpdateState.Available(release.version, release.apkUrl, release.apkSize)
+                }
+            } catch (e: Exception) {
+                updateState = UpdateState.Error(e.message ?: "Не удалось проверить обновления")
+            } finally {
+                updateBusy = false
+            }
+        }
+    }
+
+    fun downloadUpdate() {
+        val available = updateState as? UpdateState.Available ?: return
+        if (updateBusy) return
+        updateBusy = true
+        updateState = UpdateState.Downloading(0)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val app = getApplication<Application>()
+                val dir = File(app.cacheDir, "updates").apply { mkdirs() }
+                dir.listFiles()?.forEach { it.delete() }
+                val target = File(dir, "StartLine-${available.version}.apk")
+                GitHubUpdate.downloadApk(available.apkUrl, target, available.size, appVersion) { percent ->
+                    updateState = UpdateState.Downloading(percent)
+                }
+                val downloadedVersion = ApkVerifier.versionName(app, target)
+                if (!ApkVerifier.isSameApp(app, target) || downloadedVersion != available.version) {
+                    target.delete()
+                    updateState = UpdateState.Error("Скачанный файл не подходит для обновления")
+                } else {
+                    updateState = UpdateState.Ready(available.version, target)
+                }
+            } catch (e: Exception) {
+                updateState = UpdateState.Error(e.message ?: "Не удалось скачать обновление")
+            } finally {
+                updateBusy = false
+            }
+        }
+    }
+
+    fun resetUpdateState() {
+        if (!updateBusy) updateState = UpdateState.Idle
+    }
+
+    fun currentVersionName(): String = appVersion
+
     fun syncNow() {
         val u = user ?: return
         if (syncing) return
@@ -228,7 +294,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val result = repo.sync(u.id)
                 if (repo.workouts(u.id).isEmpty()) repo.generatePlan(u.id)
                 loadAllInternal(u)
-                message = "Синхронизировано: ${result.activityCount} тренировок, ${result.wellnessCount} дней wellness"
+                message = "Синхронизировано: ${result.activityCount} тренировок, ${result.wellnessCount} дней wellness" +
+                    if (result.watchCount > 0) ", из часов: ${result.watchCount}" else ""
             } catch (e: Exception) {
                 message = e.message ?: "Ошибка синхронизации"
             } finally {
@@ -355,6 +422,71 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun activitiesFor(sport: Sport?): List<Activity> =
         if (sport == null) activities else activities.filter { it.sport == sport }
 
+    // ---------- тейпер и сервисы часов (пункты 2.1–2.4) ----------
+
+    fun watchAuthUrl(provider: WatchProvider): String = repo.watchAuthUrl(provider)
+
+    fun disconnectWatch(provider: WatchProvider) {
+        repo.disconnectWatch(provider)
+        watchConnections = repo.watchConnections()
+    }
+
+    /** Deep-link startline://oauth/watch?code=… — обмен кода авторизации на токен. */
+    fun handleWatchCallback(uri: Uri): Boolean {
+        val provider = repo.handleWatchCallback(uri) ?: return false
+        watchConnections = repo.watchConnections()
+        message = "«${provider.label}» подключено"
+        return true
+    }
+
+    /** Загружает тренировки одного подключённого сервиса. */
+    fun syncWatch(provider: WatchProvider) {
+        val u = user ?: return
+        if (watchSyncBusy) return
+        watchSyncBusy = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = repo.syncWatch(u.id, provider)
+                watchConnections = repo.watchConnections()
+                loadAllInternal(u)
+                message = "${provider.label}: загружено ${result.activityCount} тренировок"
+            } catch (e: Exception) {
+                message = e.message ?: "Не удалось загрузить тренировки"
+            } finally {
+                watchSyncBusy = false
+            }
+        }
+    }
+
+    // ---------- резервная копия настроек (пункт 4.2) ----------
+
+    fun backupFiles(): List<File> = repo.backups()
+
+    fun exportBackup(includeKeys: Boolean = true) {
+        val u = user ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = repo.exportBackup(u.id, includeKeys)
+                message = "Резервная копия сохранена: ${file.name}"
+            } catch (e: Exception) {
+                message = e.message ?: "Не удалось сохранить резервную копию"
+            }
+        }
+    }
+
+    fun importBackup(file: File) {
+        val u = user ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                repo.importBackup(u.id, file)
+                loadAllInternal(u)
+                message = "Настройки восстановлены из ${file.name}"
+            } catch (e: Exception) {
+                message = e.message ?: "Не удалось восстановить настройки"
+            }
+        }
+    }
+
     private fun loadAllInternal(u: User) {
         try {
             val p = repo.profile(u.id)
@@ -371,13 +503,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             activities = acts
             wellness = w
             races = r
-            taperPlan = TaperEngine.plan(r)
             workouts = wks
             fatigue = fat
             model = mod
             analysis = a
             lastSyncAt = repo.lastSyncAt()
             athleteName = repo.athleteName()
+            taperPlan = TaperEngine.plan(r)
+            watchConnections = repo.watchConnections()
             onboarded = repo.isOnboarded() || p.isFilled
         } catch (e: Exception) {
             message = e.message ?: "Ошибка загрузки данных"

@@ -7,7 +7,8 @@ import java.util.Locale
 
 enum class Sport(val key: String, val label: String) {
     RUN("run", "Бег"),
-    BIKE("bike", "Велосипед");
+    BIKE("bike", "Велосипед"),
+    STRENGTH("strength", "Сила");
 
     companion object {
         fun fromKey(key: String?): Sport? = entries.firstOrNull { it.key == key }
@@ -17,6 +18,21 @@ enum class Sport(val key: String, val label: String) {
             "Ride", "VirtualRide", "MountainBikeRide", "GravelRide", "TrackRide",
             "Cyclocross", "EBikeRide" -> BIKE
             else -> null
+        }
+
+        /**
+         * Тип активности из сервисов часов (Amazfit, Garmin, Huawei, Polar).
+         * Имена различаются, поэтому сравнение идёт по нормализованному значению.
+         */
+        fun fromWatchType(type: String?): Sport? {
+            val t = type.orEmpty().trim().lowercase()
+            return when {
+                t in setOf("run", "running", "trail_run", "trailrunning", "athletics", "indoor_running") -> RUN
+                t in setOf("bike", "cycling", "ride", "mountain_bike", "mtb", "indoor_cycling",
+                    "gravel", "cyclocross", "ebike", "bicycling") -> BIKE
+                t in setOf("strength", "strength_training", "strengthtraining", "gym", "functional") -> STRENGTH
+                else -> null
+            }
         }
     }
 }
@@ -53,6 +69,12 @@ data class Profile(
     val ftpWatts: Int? = null,
     val intervalsId: String = "0",
     val intervalsKey: String = "",
+    val trainingDays: Int = 6,
+    val longRunDay: Int = 6,
+    val highIntensityDay: Int = 2,
+    val strengthDay: Int = 4,
+    /** Частота силовых: 1 — каждую неделю, 2 — раз в 2 недели и т. д. */
+    val strengthEveryWeeks: Int = 1,
     val aiBaseUrl: String = "https://openrouter.ai/api/v1",
     val aiModel: String = "deepseek/deepseek-chat-v3-0324:free",
     val aiKey: String = "",
@@ -92,8 +114,10 @@ data class Activity(
     val normPower: Int?,
     val ctl: Double?,
     val atl: Double?,
-    /** Признак "гонка": тренировка из intervals.icu отмечена как старт. */
+    /** Признак «гонка»: тренировка отмечена как старт (источник — intervals.icu или часы). */
     val isRace: Boolean = false,
+    /** Откуда попала тренировка: intervals.icu или подключённые часы. */
+    val source: String = "intervals",
 )
 
 data class WellnessDay(
@@ -154,6 +178,9 @@ object Fmt {
     private val dateFullRu = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru"))
     private val dateShort = DateTimeFormatter.ofPattern("dd.MM.yyyy")
     private val weekdays = listOf("пн", "вт", "ср", "чт", "пт", "сб", "вс")
+    private val weekdayNames = listOf(
+        "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье",
+    )
     private val months = listOf(
         "января", "февраля", "марта", "апреля", "мая", "июня",
         "июля", "августа", "сентября", "октября", "ноября", "декабря",
@@ -168,6 +195,11 @@ object Fmt {
     fun dateShort(d: LocalDate): String = d.format(dateShort)
     fun monthNom(m: Int): String = monthsNom[m - 1]
     fun weekday(d: LocalDate): String = weekdays[d.dayOfWeek.value - 1]
+
+    /** День недели по ISO: 1 — понедельник, 7 — воскресенье. */
+    fun weekdayName(day: Int): String = weekdayNames[(day - 1).coerceIn(0, 6)]
+
+    fun weekdayShort(day: Int): String = weekdays[(day - 1).coerceIn(0, 6)].replaceFirstChar { it.uppercase() }
 
     fun dayMonth(d: LocalDate): String = "${d.dayOfMonth} ${months[d.monthValue - 1]}"
 

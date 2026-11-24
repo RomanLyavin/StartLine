@@ -1,6 +1,7 @@
 package com.startline.app.data
 
 import android.content.Context
+import android.net.Uri
 import com.startline.app.ai.AiClient
 import com.startline.app.ai.AiPrompt
 import com.startline.app.ai.AiResult
@@ -8,12 +9,14 @@ import com.startline.app.ai.LocalCoach
 import com.startline.app.domain.AthleteModelBuilder
 import com.startline.app.domain.FatigueEngine
 import com.startline.app.domain.PlanEngine
+import java.io.File
 import java.time.LocalDate
 
 data class SyncResult(
     val activityCount: Int,
     val wellnessCount: Int,
     val athleteName: String,
+    val watchCount: Int = 0,
 )
 
 class Repository(context: Context) {
@@ -21,6 +24,8 @@ class Repository(context: Context) {
     private val db = Db(appContext)
     private val secrets = SecretStore()
     private val prefs = appContext.getSharedPreferences("startline", Context.MODE_PRIVATE)
+    private val watchOAuth = WatchOAuthManager(appContext)
+    private val watchSync = WatchSync(watchOAuth)
 
     // ---------- session ----------
 
@@ -119,6 +124,7 @@ class Repository(context: Context) {
 
         db.upsertActivities(activities)
         db.upsertWellness(wellness, userId)
+        val watchCount = syncWatchActivities(userId, profile, today)
 
         val updated = profile.copy(
             name = profile.name.ifBlank { athlete.name },
@@ -132,8 +138,66 @@ class Repository(context: Context) {
             .putString("athlete_name", athlete.name)
             .apply()
 
-        return SyncResult(activities.size, wellness.size, athlete.name)
+        return SyncResult(activities.size, wellness.size, athlete.name, watchCount)
     }
+
+    // ---------- сервисы часов (пункты 2.1–2.4) ----------
+
+    /** Пункт 4.1: модуль синхронизации с внешними сервисами. */
+    private fun syncWatchActivities(userId: Long, profile: Profile, today: LocalDate): Int {
+        var total = 0
+        for (connection in watchOAuth.connections()) {
+            if (!connection.connected) continue
+            try {
+                val list = watchSync.fetchActivities(userId, connection.provider, profile, today.minusDays(120), today)
+                db.upsertActivities(list)
+                total += list.size
+            } catch (e: Exception) {
+                // Сервис недоступен: не блокируем основную синхронизацию, но показываем причину.
+                prefs.edit().putString("watch_error_${connection.provider.key}", e.message ?: "Ошибка").apply()
+            }
+        }
+        return total
+    }
+
+    fun syncWatch(userId: Long, provider: WatchProvider): WatchSyncResult {
+        val profile = profile(userId)
+        val today = LocalDate.now()
+        val activities = watchSync.fetchActivities(userId, provider, profile, today.minusDays(120), today)
+        db.upsertActivities(activities)
+        return WatchSyncResult(provider, activities.size)
+    }
+
+    fun watchConnections(): List<WatchConnection> = watchOAuth.connections()
+
+    fun watchAuthUrl(provider: WatchProvider): String = watchOAuth.authorizationUrl(provider)
+
+    fun disconnectWatch(provider: WatchProvider) = watchOAuth.disconnect(provider)
+
+    fun handleWatchCallback(uri: Uri): WatchProvider? = watchOAuth.handleCallback(uri)
+
+    fun watchError(provider: WatchProvider): String? = prefs.getString("watch_error_${provider.key}", null)
+
+    // ---------- резервная копия настроек (пункт 4.2) ----------
+
+    private val backupDir = File(appContext.filesDir, "backups").apply { mkdirs() }
+
+    /** Сохраняет настройки в JSON-файл во внутренней памяти приложения. */
+    fun exportBackup(userId: Long, includeKeys: Boolean = true): File {
+        val json = SettingsBackup.exportJson(profile(userId), includeKeys)
+        val file = File(backupDir, "startline-settings-${LocalDate.now()}.json")
+        file.writeText(json, Charsets.UTF_8)
+        return file
+    }
+
+    /** Восстанавливает настройки из файла резервной копии. */
+    fun importBackup(userId: Long, file: File): Profile {
+        val restored = SettingsBackup.importJson(file.readText(Charsets.UTF_8))
+        saveProfile(restored.copy(userId = userId))
+        return profile(userId)
+    }
+
+    fun backups(): List<File> = backupDir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
 
     // ---------- model / plan ----------
 

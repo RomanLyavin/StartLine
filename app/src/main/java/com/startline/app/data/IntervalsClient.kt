@@ -94,7 +94,8 @@ class IntervalsClient(
                     normPower = o.intOrNull("weighted_average_watts") ?: o.intOrNull("icu_weighted_avg_watts"),
                     ctl = o.doubleOrNull("icu_ctl"),
                     atl = o.doubleOrNull("icu_atl"),
-                    isRace = isRaceActivity(o),
+                    isRace = RaceFlags.isRace(o.optString("type"), o.optString("name")),
+                    source = "intervals",
                 )
             )
         }
@@ -184,7 +185,8 @@ class IntervalsClient(
                 normPower = o.intOrNull("weighted_average_watts"),
                 ctl = o.doubleOrNull("icu_ctl"),
                 atl = o.doubleOrNull("icu_atl"),
-                isRace = isRaceActivity(o),
+                isRace = RaceFlags.isRace(o.optString("type"), o.optString("name")),
+                source = "intervals",
             )
         }
 
@@ -230,24 +232,6 @@ class IntervalsClient(
     }
 
     private fun enc(value: String): String = URLEncoder.encode(value, "UTF-8")
-
-    /**
-     * intervals.icu не имеет отдельного флага гонки в публичном API, поэтому
-     * признак определяется по типу активности и названию. Поддерживаются
-     * английские и русские обозначения стартов.
-     */
-    private fun isRaceActivity(o: JSONObject): Boolean {
-        val type = o.optString("type").trim().lowercase()
-        val name = o.optString("name").trim().lowercase()
-        if (type == "race" || type == "competition") return true
-        if (o.optBoolean("race", false) || o.optBoolean("is_race", false)) return true
-        val markers = listOf(
-            "гонка", "старт", "соревнование", "забег", "марафон", "полумарафон",
-            "race", "racing", "event", "competition", "marathon", "half marathon",
-            "10k", "5k", "triathlon", "duathlon", "time trial", "crit", "xco", "cx ",
-        )
-        return markers.any { name.contains(it) }
-    }
 
     private fun JSONObject.doubleOrNull(key: String): Double? {
         if (!has(key) || isNull(key)) return null

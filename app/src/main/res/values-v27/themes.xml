@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- android:windowLightNavigationBar доступен только с API 27, поэтому стиль
+     повторяется здесь целиком: на API 26 он берётся из values/themes.xml,
+     где этот атрибут отсутствует. -->
+<resources>
+    <style name="Theme.StartLine" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:fontFamily">sans</item>
+    </style>
+</resources>

@@ -38,6 +38,7 @@ object PlanEngine {
             fatigue.ctl < 70 -> 1.0
             else -> 1.08
         }
+        val days = allocateDays(profile)
 
         for (w in 0 until weeks) {
             val weekStart = monday.plusWeeks(w.toLong())
@@ -75,80 +76,94 @@ object PlanEngine {
                 )
             }
 
+            fun addOn(
+                slot: String,
+                sport: Sport,
+                type: String,
+                title: String,
+                description: String,
+                durationMin: Int,
+                target: String,
+                load: Double,
+            ) {
+                val dayOffset = days[slot] ?: return
+                add(dayOffset, sport, type, title, description, durationMin, target, load)
+            }
+
             // --- бег ---
             when (phase) {
                 "Подводка", "Старт" -> {
-                    add(
-                        1, Sport.RUN, "opener", "Открытие перед стартом",
+                    addOn(
+                        "high", Sport.RUN, "opener", "Открытие перед стартом",
                         "20–30 мин легко + 3×1 мин в темпе старта, отдых 2 мин. Не загоняйте себя.",
                         (28 * factor).roundToInt(), runPaceTarget(profile, 1.15, 1.30),
                         22.0
                     )
-                    add(
-                        3, Sport.RUN, "easy", "Лёгкий бег",
+                    addOn(
+                        "easy", Sport.RUN, "easy", "Лёгкий бег",
                         "Спокойный бег в Z2, дыхание ровное. Заминка 5 мин.",
                         35, runHrTarget(profile, 1), 28.0
                     )
                 }
                 "Восстановление" -> {
-                    add(
-                        1, Sport.RUN, "easy", "Восстановительный бег",
+                    addOn(
+                        "easy", Sport.RUN, "easy", "Восстановительный бег",
                         "Очень легко, Z1–Z2, без ускорений. Цель — восстановление, а не нагрузка.",
                         35, runHrTarget(profile, 0), 20.0
                     )
-                    add(
-                        5, Sport.RUN, "long", "Аэробная пробежка",
+                    addOn(
+                        "long", Sport.RUN, "long", "Аэробная пробежка",
                         "Ровный лёгкий бег Z2. Не гонитесь за темпом.",
                         50, runHrTarget(profile, 1), 38.0
                     )
                 }
                 "Пик" -> {
-                    add(
-                        1, Sport.RUN, "vo2", "Интервалы VO2max",
+                    addOn(
+                        "high", Sport.RUN, "vo2", "Интервалы VO2max",
                         "Разминка 15 мин, 5×3 мин в Z5, отдых 2 мин трусцой, заминка 10 мин.",
                         52, runHrTarget(profile, 4), 62.0
                     )
-                    add(
-                        3, Sport.RUN, "easy", "Лёгкий бег",
+                    addOn(
+                        "easy", Sport.RUN, "easy", "Лёгкий бег",
                         "Лёгкий бег Z2 после интервалов. Если ноги тяжёлые — сократите до 30 мин.",
                         42, runHrTarget(profile, 1), 30.0
                     )
-                    add(
-                        5, Sport.RUN, "long", "Длинная пробежка",
+                    addOn(
+                        "long", Sport.RUN, "long", "Длинная пробежка",
                         "Ровный бег Z2. Последние 15 мин можно чуть быстрее, если самочувствие хорошее.",
                         (88 * factor).roundToInt(), runHrTarget(profile, 1), 66.0
                     )
                 }
                 "Развитие" -> {
-                    add(
-                        1, Sport.RUN, "threshold", "Пороговая работа",
+                    addOn(
+                        "high", Sport.RUN, "threshold", "Пороговая работа",
                         "Разминка 15 мин, 3×8 мин на ПАНО (Z4), отдых 2 мин трусцой, заминка 10 мин.",
                         55, runPaceTarget(profile, 0.98, 1.02), 58.0
                     )
-                    add(
-                        3, Sport.RUN, "easy", "Лёгкий бег",
+                    addOn(
+                        "easy", Sport.RUN, "easy", "Лёгкий бег",
                         "Лёгкий бег Z2, в конце 4×20 сек ускорения.",
                         45, runHrTarget(profile, 1), 33.0
                     )
-                    add(
-                        5, Sport.RUN, "long", "Длинная пробежка",
+                    addOn(
+                        "long", Sport.RUN, "long", "Длинная пробежка",
                         "Ровный бег Z2. Следите за пульсом: не уходите выше верхней границы зоны.",
                         (80 * factor).roundToInt(), runHrTarget(profile, 1), 60.0
                     )
                 }
                 else -> { // База
-                    add(
-                        1, Sport.RUN, "tempo", "Аэробный темп",
+                    addOn(
+                        "high", Sport.RUN, "tempo", "Аэробный темп",
                         "Разминка 15 мин, 2×12 мин в Z3, отдых 3 мин легко, заминка 10 мин.",
                         50, runHrTarget(profile, 2), 46.0
                     )
-                    add(
-                        3, Sport.RUN, "easy", "Лёгкий бег",
+                    addOn(
+                        "easy", Sport.RUN, "easy", "Лёгкий бег",
                         "Спокойный бег Z2, в конце 4×20 сек ускорения.",
                         45, runHrTarget(profile, 1), 32.0
                     )
-                    add(
-                        5, Sport.RUN, "long", "Длинная пробежка",
+                    addOn(
+                        "long", Sport.RUN, "long", "Длинная пробежка",
                         "Ровный бег Z2. Цель — время в аэробной зоне, а не скорость.",
                         (72 * factor).roundToInt(), runHrTarget(profile, 1), 55.0
                     )
@@ -157,19 +172,19 @@ object PlanEngine {
 
             // --- велосипед ---
             if (phase == "Старт" || phase == "Подводка") {
-                add(
-                    2, Sport.BIKE, "endurance", "Велосипед: аэробно",
+                addOn(
+                    "bike_endurance", Sport.BIKE, "endurance", "Велосипед: аэробно",
                     "Ровная езда Z2, каденс 85–95. Пить каждые 15–20 мин.",
                     45, bikeHrTarget(profile, 1), 32.0
                 )
             } else if (phase == "Восстановление") {
-                add(
-                    2, Sport.BIKE, "recovery", "Велосипед: восстановление",
+                addOn(
+                    "bike_endurance", Sport.BIKE, "recovery", "Велосипед: восстановление",
                     "Очень легко Z1, 30–40 мин. Без длинных подъёмов.",
                     40, bikeHrTarget(profile, 0), 20.0
                 )
-                add(
-                    6, Sport.BIKE, "endurance", "Велосипед: аэробно",
+                addOn(
+                    "bike_long", Sport.BIKE, "endurance", "Велосипед: аэробно",
                     "Спокойная езда Z2, ровный каденс. Не гонитесь за средней скоростью.",
                     60, bikeHrTarget(profile, 1), 42.0
                 )
@@ -181,19 +196,30 @@ object PlanEngine {
                 } else {
                     "Разминка 15 мин, 3×12 мин 88–92% FTP (или Z3–Z4), отдых 5 мин, заминка 10 мин."
                 }
-                add(
-                    2, Sport.BIKE, "endurance", "Велосипед: аэробно",
+                addOn(
+                    "bike_endurance", Sport.BIKE, "endurance", "Велосипед: аэробно",
                     "Ровная езда Z2, каденс 85–95. Пить каждые 15–20 мин.",
                     (75 * factor).roundToInt(), bikeHrTarget(profile, 1), 48.0
                 )
-                add(
-                    4, Sport.BIKE, qualityType, qualityTitle, qualityDesc,
+                addOn(
+                    "bike_quality", Sport.BIKE, qualityType, qualityTitle, qualityDesc,
                     62, bikePowerTarget(profile, phase), 64.0
                 )
-                add(
-                    6, Sport.BIKE, "long", "Длинная велотренировка",
+                addOn(
+                    "bike_long", Sport.BIKE, "long", "Длинная велотренировка",
                     "Ровная езда Z2, 2–3 ч. Питание 60–80 г углеводов в час, если работа дольше 2 ч.",
                     (105 * factor).roundToInt(), bikeHrTarget(profile, 1), 68.0
+                )
+            }
+
+            // --- силовая ---
+            // Ставится только в неделях, кратких настроенной частоте (пункт 1.3 плана).
+            val strengthWeekOk = w % profile.strengthEveryWeeks.coerceIn(1, 4) == 0
+            if (strengthWeekOk && phase != "Старт" && phase != "Подводка") {
+                addOn(
+                    "strength", Sport.STRENGTH, "strength", "Силовая тренировка",
+                    "Круговая: приседания, выпады, ягодичный мост, планка, тяга. 2–3 круга по 10–15 повторений, без работы до отказа.",
+                    40, "2–3 круга · 10–15 повт.", 24.0
                 )
             }
 
@@ -279,6 +305,43 @@ object PlanEngine {
         return result.sortedWith(compareBy({ it.date }, { it.sport.ordinal }))
     }
 
+    /**
+     * Раскладывает занятия по дням недели. Ключевые тренировки (интервалы,
+     * длительная, силовая) встают на выбранные дни, остальные — на свободные.
+     * Количество занятий ограничено настройкой «дней в неделю».
+     */
+    private fun allocateDays(profile: Profile): Map<String, Long> {
+        val trainingDays = profile.trainingDays.coerceIn(1, 7)
+        val specs = listOf(
+            "high" to (profile.highIntensityDay - 1),
+            "long" to (profile.longRunDay - 1),
+            "strength" to (profile.strengthDay - 1),
+            "bike_quality" to 4,
+            "easy" to 0,
+            "bike_endurance" to 2,
+            "bike_long" to 6,
+        ).take(trainingDays)
+
+        val used = HashSet<Long>()
+        val result = LinkedHashMap<String, Long>()
+        for ((slot, preferred) in specs) {
+            val day = nearestFree(preferred.coerceIn(0, 6), used) ?: continue
+            used.add(day)
+            result[slot] = day
+        }
+        return result
+    }
+
+    private fun nearestFree(preferred: Int, used: Set<Long>): Long? {
+        for (delta in 0..6) {
+            val forward = ((preferred + delta) % 7).toLong()
+            if (forward !in used) return forward
+            val backward = ((preferred - delta + 7) % 7).toLong()
+            if (backward !in used) return backward
+        }
+        return null
+    }
+
     private fun phaseFor(weekStart: LocalDate, weekEnd: LocalDate, race: Race?, index: Int): String {
         if (race != null) {
             if (!race.date.isBefore(weekStart) && !race.date.isAfter(weekEnd)) return "Старт"
@@ -315,6 +378,7 @@ object PlanEngine {
                 if (distance != null && pace != null) distance * pace * 1.05 / 60.0 else 60.0
             }
             Sport.BIKE -> if (distance != null) distance / 30.0 * 60.0 else 90.0
+            Sport.STRENGTH -> 45.0
         }
         return minutes.roundToInt().coerceIn(25, 360)
     }

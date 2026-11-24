@@ -6,7 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.time.LocalDate
 
-class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) {
+class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -38,6 +38,11 @@ class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) 
                 ftp_watts INTEGER,
                 intervals_id TEXT,
                 intervals_key TEXT,
+                training_days INTEGER NOT NULL DEFAULT 6,
+                long_run_day INTEGER NOT NULL DEFAULT 6,
+                high_intensity_day INTEGER NOT NULL DEFAULT 2,
+                strength_day INTEGER NOT NULL DEFAULT 4,
+                strength_every_weeks INTEGER NOT NULL DEFAULT 1,
                 ai_base_url TEXT,
                 ai_model TEXT,
                 ai_key TEXT,
@@ -68,7 +73,8 @@ class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) 
                 norm_power INTEGER,
                 ctl REAL,
                 atl REAL,
-                is_race INTEGER NOT NULL DEFAULT 0
+                is_race INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'intervals'
             )
             """.trimIndent()
         )
@@ -135,7 +141,17 @@ class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) 
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
-            runCatching { db.execSQL("ALTER TABLE activities ADD COLUMN is_race INTEGER NOT NULL DEFAULT 0") }
+            db.execSQL("ALTER TABLE profiles ADD COLUMN training_days INTEGER NOT NULL DEFAULT 6")
+            db.execSQL("ALTER TABLE profiles ADD COLUMN long_run_day INTEGER NOT NULL DEFAULT 6")
+            db.execSQL("ALTER TABLE profiles ADD COLUMN high_intensity_day INTEGER NOT NULL DEFAULT 2")
+            db.execSQL("ALTER TABLE profiles ADD COLUMN strength_day INTEGER NOT NULL DEFAULT 4")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE activities ADD COLUMN is_race INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE activities ADD COLUMN source TEXT NOT NULL DEFAULT 'intervals'")
+        }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE profiles ADD COLUMN strength_every_weeks INTEGER NOT NULL DEFAULT 1")
         }
     }
 
@@ -196,6 +212,11 @@ class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) 
                     ftpWatts = c.intOrNull("ftp_watts"),
                     intervalsId = c.str("intervals_id") ?: "0",
                     intervalsKey = c.str("intervals_key") ?: "",
+                    trainingDays = (c.intOrNull("training_days") ?: 6).coerceIn(1, 7),
+                    longRunDay = (c.intOrNull("long_run_day") ?: 6).coerceIn(1, 7),
+                    highIntensityDay = (c.intOrNull("high_intensity_day") ?: 2).coerceIn(1, 7),
+                    strengthDay = (c.intOrNull("strength_day") ?: 4).coerceIn(1, 7),
+                    strengthEveryWeeks = (c.intOrNull("strength_every_weeks") ?: 1).coerceIn(1, 4),
                     aiBaseUrl = c.str("ai_base_url") ?: "https://openrouter.ai/api/v1",
                     aiModel = c.str("ai_model") ?: "deepseek/deepseek-chat-v3-0324:free",
                     aiKey = c.str("ai_key") ?: "",
@@ -220,6 +241,11 @@ class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) 
             put("ftp_watts", p.ftpWatts)
             put("intervals_id", p.intervalsId)
             put("intervals_key", p.intervalsKey)
+            put("training_days", p.trainingDays.coerceIn(1, 7))
+            put("long_run_day", p.longRunDay.coerceIn(1, 7))
+            put("high_intensity_day", p.highIntensityDay.coerceIn(1, 7))
+            put("strength_day", p.strengthDay.coerceIn(1, 7))
+            put("strength_every_weeks", p.strengthEveryWeeks.coerceIn(1, 4))
             put("ai_base_url", p.aiBaseUrl)
             put("ai_model", p.aiModel)
             put("ai_key", p.aiKey)
@@ -266,6 +292,7 @@ class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) 
         put("ctl", a.ctl)
         put("atl", a.atl)
         put("is_race", if (a.isRace) 1 else 0)
+        put("source", a.source)
     }
 
     fun activities(userId: Long, sport: Sport? = null, limit: Int = 400): List<Activity> {
@@ -300,6 +327,7 @@ class Db(context: Context) : SQLiteOpenHelper(context, "startline.db", null, 2) 
                         ctl = c.doubleOrNull("ctl"),
                         atl = c.doubleOrNull("atl"),
                         isRace = c.intOrNull("is_race") == 1,
+                        source = c.str("source") ?: "intervals",
                     )
                 )
             }

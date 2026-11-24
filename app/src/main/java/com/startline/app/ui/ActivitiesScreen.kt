@@ -153,12 +153,11 @@ private fun ActivityCard(activity: Activity, onClick: () -> Unit) {
                     color = TextSecondary,
                 )
             }
+            Pill("${Fmt.load(activity.load)}", if (activity.sport == Sport.RUN) Lime else Cyan)
             if (activity.isRace) {
                 Spacer(Modifier.width(6.dp))
                 Pill("ГОНКА", Orange, solid = true)
             }
-            Spacer(Modifier.width(6.dp))
-            Pill("${Fmt.load(activity.load)}", if (activity.sport == Sport.RUN) Lime else Cyan)
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -212,11 +211,15 @@ fun ActivityDetailScreen(vm: AppViewModel, activity: Activity, onBack: () -> Uni
                     color = TextSecondary,
                 )
             }
-            if (activity.isRace) {
-                Pill("ГОНКА", Orange, solid = true)
-                Spacer(Modifier.width(6.dp))
-            }
             Pill(activity.sport.label, if (activity.sport == Sport.RUN) Lime else Cyan)
+            if (activity.isRace) {
+                Spacer(Modifier.width(6.dp))
+                Pill("ГОНКА", Orange, solid = true)
+            }
+            if (activity.source != "intervals") {
+                Spacer(Modifier.width(6.dp))
+                Pill(activity.source, Cyan)
+            }
         }
 
         Text(

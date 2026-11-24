@@ -28,6 +28,10 @@ enum class WatchProvider(
     val authorizeUrl: String,
     val tokenUrl: String,
     val scope: String,
+    /** Список активностей сервиса; {user} — идентификатор пользователя в сервисе. */
+    val activitiesUrl: String,
+    /** Эндпоинт профиля пользователя (для получения {user} в activitiesUrl). */
+    val userUrl: String,
 ) {
     AMAZFIT(
         "amazfit",
@@ -37,6 +41,8 @@ enum class WatchProvider(
         "https://api.amazfit.com/oauth/authorize",
         "https://api.amazfit.com/oauth/token",
         "user:read activity:read",
+        "https://api.amazfit.com/v1/{user}/activities",
+        "https://api.amazfit.com/v1/users/me",
     ),
     GARMIN(
         "garmin",
@@ -46,6 +52,8 @@ enum class WatchProvider(
         "https://connect.garmin.com/oauthConfirm",
         "https://connectapi.garmin.com/oauth-service/oauth/token",
         "",
+        "https://connectapi.garmin.com/activity-service/activity/{user}",
+        "https://connectapi.garmin.com/userprofile-service/socialprofile",
     ),
     HUAWEI(
         "huawei",
@@ -55,6 +63,8 @@ enum class WatchProvider(
         "https://oauth.login.vmall.com/oauth2/authorize",
         "https://oauth.login.vmall.com/oauth2/token",
         "https://schemas.health.cloud.huawei.com/healthkit",
+        "https://health-api.cloud.huawei.com/healthkit/v2/activityRecord/{user}",
+        "https://health-api.cloud.huawei.com/healthkit/v1/userProfile",
     ),
     POLAR(
         "polar",
@@ -64,6 +74,8 @@ enum class WatchProvider(
         "https://flow.polar.com/oauth2/authorization",
         "https://polarremote.com/v2/oauth2/token",
         "accesslink.read_all",
+        "https://v2.polar.com/api/v3/users/{user}/activities",
+        "https://v2.polar.com/oauth2/user",
     );
 
     companion object {
@@ -143,10 +155,13 @@ class WatchOAuthManager(private val context: Context) {
         return if (exchangeCode(provider, code)) provider else null
     }
 
-    fun connections(): List<WatchConnection> = WatchProvider.entries.map { provider ->
+    fun connections(): List<WatchConnection> = WatchProvider.entries.map { connection(it) }
+
+    /** Одна подписка по провайдеру (используется модулем синхронизации). */
+    fun connection(provider: WatchProvider): WatchConnection {
         val token = prefs.getString("${provider.key}_token", "").orEmpty()
         val decrypted = if (token.isNotBlank()) secrets.decrypt(token) else ""
-        WatchConnection(
+        return WatchConnection(
             provider = provider,
             connected = decrypted.isNotBlank(),
             connectedAt = prefs.getLong("${provider.key}_at", 0L),
@@ -157,11 +172,19 @@ class WatchOAuthManager(private val context: Context) {
         )
     }
 
+    /** Идентификатор пользователя в сервисе — нужен для URL списка активностей. */
+    fun userId(provider: WatchProvider): String = prefs.getString("${provider.key}_user", "").orEmpty()
+
+    fun saveUserId(provider: WatchProvider, value: String) {
+        if (value.isNotBlank()) prefs.edit().putString("${provider.key}_user", value).apply()
+    }
+
     fun disconnect(provider: WatchProvider) {
         prefs.edit()
             .remove("${provider.key}_token")
             .remove("${provider.key}_refresh")
             .remove("${provider.key}_at")
+            .remove("${provider.key}_user")
             .apply()
     }
 

@@ -27,7 +27,7 @@ import com.startline.app.data.WatchConnection
 
 /** Экран подводки к соревнованию (тейпера). */
 @Composable
-fun TaperScreen(vm: AppViewModel, onOpenCalendar: () -> Unit = {}) {
+fun TaperScreen(vm: AppViewModel, onBack: (() -> Unit)? = null, onOpenCalendar: () -> Unit = {}) {
     val plan = vm.taperPlan
     Column(
         modifier = Modifier
@@ -35,7 +35,13 @@ fun TaperScreen(vm: AppViewModel, onOpenCalendar: () -> Unit = {}) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
-        ScreenHeader(title = "Тейпер", subtitle = "Подводка к соревнованию")
+        ScreenHeader(
+            title = "Тейпер",
+            subtitle = "Подводка к соревнованию",
+            actions = {
+                if (onBack != null) IconAction(Icons.Filled.ArrowBack, "Назад", onBack)
+            },
+        )
         CardBox {
             Text(
                 if (plan.hasRace) "Ближайший старт" else "Нет запланированных стартов",
@@ -118,6 +124,7 @@ fun WatchConnectionsScreen(vm: AppViewModel, onBack: () -> Unit) {
                     runCatching { context.startActivity(intent) }
                 },
                 onDisconnect = { vm.disconnectWatch(connection.provider) },
+                onSync = { vm.syncWatch(connection.provider) },
             )
             Spacer(Modifier.height(10.dp))
         }
@@ -130,6 +137,7 @@ private fun WatchConnectionCard(
     connection: WatchConnection,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    onSync: () -> Unit,
 ) {
     CardBox {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -156,6 +164,8 @@ private fun WatchConnectionCard(
         }
         Spacer(Modifier.height(8.dp))
         if (connection.connected) {
+            GhostButton("Загрузить тренировки", onClick = onSync)
+            Spacer(Modifier.height(8.dp))
             GhostButton("Отключить", onClick = onDisconnect)
         } else {
             androidx.compose.material3.Button(

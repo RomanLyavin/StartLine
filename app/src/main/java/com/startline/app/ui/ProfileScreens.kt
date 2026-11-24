@@ -262,7 +262,14 @@ fun ProfileForm(
 }
 
 @Composable
-fun ProfileScreen(vm: AppViewModel, onOpenWatch: () -> Unit = {}) {
+fun ProfileScreen(
+    vm: AppViewModel,
+    onOpenSchedule: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
+    onOpenTaper: () -> Unit = {},
+    onOpenWatches: () -> Unit = {},
+    onOpenBackup: () -> Unit = {},
+) {
     val profile = vm.profile
     if (profile == null) {
         LoadingBlock()
@@ -281,27 +288,6 @@ fun ProfileScreen(vm: AppViewModel, onOpenWatch: () -> Unit = {}) {
                 GhostButton("Выйти", onClick = { vm.logout() })
             },
         )
-        CardBox(onClick = onOpenWatch) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Часы и синхронизация",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
-                    )
-                    Text(
-                        "Amazfit, Garmin, Huawei, Polar — OAuth-подключение",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
-                    )
-                }
-                val connected = vm.watchConnections.count { it.connected }
-                if (connected > 0) {
-                    Pill("$connected подкл.", Cyan)
-                }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
         ProfileForm(
             initial = profile,
             email = vm.user?.email ?: "",
@@ -313,6 +299,18 @@ fun ProfileScreen(vm: AppViewModel, onOpenWatch: () -> Unit = {}) {
             onSaveAndSync = { vm.saveProfileAndSync(it) },
             onTestAi = { vm.testAi(it) },
         )
+        Spacer(Modifier.height(4.dp))
+        CardBox {
+            SectionLabel("Настройки")
+            Spacer(Modifier.height(6.dp))
+            Column {
+                GhostButton("Расписание тренировок", onClick = onOpenSchedule)
+                GhostButton("Тейпер", onClick = onOpenTaper)
+                GhostButton("Часы", onClick = onOpenWatches)
+                GhostButton("Резервная копия настроек", onClick = onOpenBackup)
+                GhostButton("О программе", onClick = onOpenAbout)
+            }
+        }
         Spacer(Modifier.height(24.dp))
     }
 }

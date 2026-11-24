@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** OAuth-ответ приходит deep-link'ом startline://oauth/watch. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIncoming(intent)

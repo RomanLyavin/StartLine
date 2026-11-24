@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TrendingUp
@@ -152,11 +153,21 @@ fun Pill(text: String, color: Color = Lime, solid: Boolean = false) {
 @Composable
 fun SportIcon(sport: Sport, size: Int = 18) {
     Icon(
-        imageVector = if (sport == Sport.RUN) Icons.Filled.DirectionsRun else Icons.Filled.DirectionsBike,
+        imageVector = when (sport) {
+            Sport.RUN -> Icons.Filled.DirectionsRun
+            Sport.BIKE -> Icons.Filled.DirectionsBike
+            Sport.STRENGTH -> Icons.Filled.FitnessCenter
+        },
         contentDescription = sport.label,
-        tint = if (sport == Sport.RUN) Lime else Cyan,
+        tint = sportColor(sport),
         modifier = Modifier.size(size.dp),
     )
+}
+
+fun sportColor(sport: Sport): Color = when (sport) {
+    Sport.RUN -> Lime
+    Sport.BIKE -> Cyan
+    Sport.STRENGTH -> Orange
 }
 
 @Composable
@@ -535,7 +546,7 @@ fun WorkoutRow(workout: Workout, showDate: Boolean = true, modifier: Modifier = 
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(if (workout.sport == Sport.RUN) Lime.copy(alpha = 0.12f) else Cyan.copy(alpha = 0.12f)),
+                .background(sportColor(workout.sport).copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             SportIcon(workout.sport, 18)

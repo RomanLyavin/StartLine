@@ -44,6 +44,8 @@ fun DashboardScreen(
     onOpenAi: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenActivities: () -> Unit,
+    onOpenAbout: () -> Unit = {},
+    onOpenSupport: () -> Unit = {},
 ) {
     val profile = vm.profile
     if (profile == null) {
@@ -332,6 +334,12 @@ fun DashboardScreen(
                     Icon(Icons.Filled.ChevronRight, null, tint = TextSecondary)
                 }
             }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GhostButton("О программе", onClick = onOpenAbout, modifier = Modifier.weight(1f))
+            GhostButton("Поддержать", onClick = onOpenSupport, modifier = Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(24.dp))

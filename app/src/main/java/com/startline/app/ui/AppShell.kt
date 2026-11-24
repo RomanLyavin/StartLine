@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Person
@@ -30,8 +29,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.startline.app.AppViewModel
+import com.startline.app.ui.settings.AboutScreen
+import com.startline.app.ui.settings.SettingsBackupScreen
+import com.startline.app.ui.settings.TrainingScheduleScreen
 
 private data class TabItem(val label: String, val icon: ImageVector)
 
@@ -53,8 +56,13 @@ private fun MainShell(vm: AppViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     var showAi by rememberSaveable { mutableStateOf(false) }
-    var showWatch by rememberSaveable { mutableStateOf(false) }
+    var showSchedule by rememberSaveable { mutableStateOf(false) }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
+    var showTaper by rememberSaveable { mutableStateOf(false) }
+    var showWatches by rememberSaveable { mutableStateOf(false) }
+    var showBackup by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(vm.message) {
         val text = vm.message
@@ -71,7 +79,6 @@ private fun MainShell(vm: AppViewModel) {
         TabItem("Календарь", Icons.Filled.CalendarMonth),
         TabItem("Модель", Icons.Filled.Insights),
         TabItem("Профиль", Icons.Filled.Person),
-        TabItem("Тейпер", Icons.Filled.Flag),
     )
 
     Scaffold(
@@ -87,7 +94,7 @@ private fun MainShell(vm: AppViewModel) {
             }
         },
         bottomBar = {
-            if (detailId == null && !showAi && !showWatch) {
+            if (detailId == null && !showAi && !showSchedule && !showAbout && !showTaper && !showWatches && !showBackup) {
                 NavigationBar(containerColor = SurfaceDark, tonalElevation = 0.dp) {
                     tabs.forEachIndexed { index, item ->
                         NavigationBarItem(
@@ -132,12 +139,6 @@ private fun MainShell(vm: AppViewModel) {
                     LaunchedEffect(id) { detailId = null }
                     LoadingBlock()
                 }
-                showWatch -> {
-                    WatchConnectionsScreen(
-                        vm = vm,
-                        onBack = { showWatch = false },
-                    )
-                }
                 showAi -> {
                     AiScreen(
                         vm = vm,
@@ -148,12 +149,26 @@ private fun MainShell(vm: AppViewModel) {
                         },
                     )
                 }
+                showSchedule -> TrainingScheduleScreen(vm = vm, onBack = { showSchedule = false })
+                showAbout -> AboutScreen(vm = vm, onBack = { showAbout = false })
+                showTaper -> TaperScreen(
+                    vm = vm,
+                    onBack = { showTaper = false },
+                    onOpenCalendar = {
+                        showTaper = false
+                        tab = 2
+                    },
+                )
+                showWatches -> WatchConnectionsScreen(vm = vm, onBack = { showWatches = false })
+                showBackup -> SettingsBackupScreen(vm = vm, onBack = { showBackup = false })
                 tab == 0 -> DashboardScreen(
                     vm = vm,
                     onOpenCalendar = { tab = 2 },
                     onOpenAi = { showAi = true },
                     onOpenProfile = { tab = 4 },
                     onOpenActivities = { tab = 1 },
+                    onOpenAbout = { showAbout = true },
+                    onOpenSupport = { AppLinks.openUrl(context, AppLinks.SUPPORT_URL) },
                 )
                 tab == 1 -> ActivitiesScreen(
                     vm = vm,
@@ -161,8 +176,14 @@ private fun MainShell(vm: AppViewModel) {
                 )
                 tab == 2 -> CalendarScreen(vm)
                 tab == 3 -> ModelScreen(vm, onOpenProfile = { tab = 4 })
-                tab == 4 -> ProfileScreen(vm, onOpenWatch = { showWatch = true })
-                else -> TaperScreen(vm, onOpenCalendar = { tab = 2 })
+                else -> ProfileScreen(
+                    vm = vm,
+                    onOpenSchedule = { showSchedule = true },
+                    onOpenAbout = { showAbout = true },
+                    onOpenTaper = { showTaper = true },
+                    onOpenWatches = { showWatches = true },
+                    onOpenBackup = { showBackup = true },
+                )
             }
         }
     }
